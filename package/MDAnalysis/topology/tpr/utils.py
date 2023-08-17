@@ -363,8 +363,13 @@ def do_mtop(data, fver, tpr_resid_from_one=False):
     molnums = np.array(molnums, dtype=np.int32)
     segids = np.array(segids, dtype=object)
     resids = np.array(resids, dtype=np.int32)
-    if tpr_resid_from_one:
-        resids += 1
+    """
+    tpr_resid_from_one must be removed because we get resid index from origin tpr order
+    the change from versionchanged:: 2.0.0 is incorrect because orgin residue is not started from 0
+    please check it
+    """
+    # if tpr_resid_from_one:
+    #     resids += 1
 
     resnames = np.array(resnames, dtype=object)
     (residx, new_resids,
@@ -693,7 +698,7 @@ def do_moltype(data, symtab, fver):
             k,
             atoms_obj.atomnames[k],
             atoms_obj.type[k],
-            a.resind,
+            atoms_obj.resids[a.resind],
             atoms_obj.resnames[a.resind],
             a.m,
             a.q,
@@ -781,21 +786,23 @@ def do_atoms(data, symtab, fver):
 
     type = [symtab[i] for i in ndo_int(data, nr)]  # e.g. opls_111
     typeB = [symtab[i] for i in ndo_int(data, nr)]
-    resnames = do_resinfo(data, symtab, fver, nres)
+    resnames, resids = do_resinfo(data, symtab, fver, nres)
 
-    return obj.Atoms(atoms, nr, nres, type, typeB, atomnames, resnames)
+    return obj.Atoms(atoms, nr, nres, type, typeB, atomnames, resnames, resids)
 
 
 def do_resinfo(data, symtab, fver, nres):
     if fver < 63:
         resnames = [symtab[i] for i in ndo_int(data, nres)]
+        resids = [i+1 for i in range(nres)]
     else:
         resnames = []
+        resids = []
         for i in range(nres):
             resnames.append(symtab[data.unpack_int()])
-            data.unpack_int()
+            resids.append(data.unpack_int())
             data.unpack_uchar()
-    return resnames
+    return resnames, resids
 
 
 def do_atom(data, fver):

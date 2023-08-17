@@ -43,7 +43,7 @@ Box = namedtuple("Box", "size rel v")
 Mtop = namedtuple("Mtop", "nmoltype moltypes nmolblock")
 Params = namedtuple("Params", "atnr ntypes functype reppow fudgeQQ")
 Atom = namedtuple("Atom", ["m", "q", "mB", "qB", "tp", "typeB", "ptype", "resind", "atomnumber"])
-Atoms = namedtuple("Atoms", "atoms nr nres type typeB atomnames resnames")
+Atoms = namedtuple("Atoms", "atoms nr nres type typeB atomnames resnames resids")
 Ilist = namedtuple("Ilist", "nr ik, iatoms")
 Molblock = namedtuple("Molblock", [
     "molb_type", "molb_nmol", "molb_natoms_mol",
