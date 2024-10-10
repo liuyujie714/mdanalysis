@@ -49,6 +49,11 @@ Files and directories
 .. autofunction:: format_from_filename_extension
 .. autofunction:: guess_format
 
+Modules and packages
+--------------------
+
+.. autofunction:: is_installed
+
 Streams
 -------
 
@@ -147,6 +152,7 @@ Strings
 .. autofunction:: convert_aa_code
 .. autofunction:: parse_residue
 .. autofunction:: conv_float
+.. autofunction:: atoi
 
 Class decorators
 ----------------
@@ -205,6 +211,8 @@ import functools
 from functools import wraps
 import textwrap
 import weakref
+import importlib
+import itertools
 
 import mmtf
 import numpy as np
@@ -555,7 +563,16 @@ def which(program):
     path : str or None
        absolute path to the executable if it can be found, else ``None``
 
+
+    .. deprecated:: 2.7.0
+       This method is deprecated and will be removed in version 3.0.0.
+       Please use shutil.which instead.
     """
+    # Can't use decorator because it's declared after this method
+    wmsg = ("This method is deprecated as of MDAnalysis version 2.7.0 "
+            "and will be removed in version 3.0.0. Please use shutil.which "
+            "instead.")
+    warnings.warn(wmsg, DeprecationWarning)
 
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -1315,13 +1332,14 @@ def fixedwidth_bins(delta, xmin, xmax):
     """
     if not np.all(xmin < xmax):
         raise ValueError('Boundaries are not sane: should be xmin < xmax.')
-    _delta = np.asarray(delta, dtype=np.float_)
-    _xmin = np.asarray(xmin, dtype=np.float_)
-    _xmax = np.asarray(xmax, dtype=np.float_)
+    _delta = np.asarray(delta, dtype=np.float64)
+    _xmin = np.asarray(xmin, dtype=np.float64)
+    _xmax = np.asarray(xmax, dtype=np.float64)
     _length = _xmax - _xmin
     N = np.ceil(_length / _delta).astype(np.int_)  # number of bins
     dx = 0.5 * (N * _delta - _length)  # add half of the excess to each end
     return {'Nbins': N, 'delta': _delta, 'min': _xmin - dx, 'max': _xmax + dx}
+
 
 def get_weights(atoms, weights):
     """Check that a `weights` argument is compatible with `atoms`.
@@ -2543,3 +2561,56 @@ def store_init_arguments(func):
                         self._kwargs[key] = arg
         return func(self, *args, **kwargs)
     return wrapper
+
+
+def no_copy_shim():
+    if np.lib.NumpyVersion >= "2.0.0rc1":
+        copy = None
+    else:
+        copy = False
+    return copy
+
+
+def atoi(s: str) -> int:
+    """Convert the leading number part of a string to an integer.
+
+    Parameters
+    ----------
+    s : str
+        The string to convert to an integer.
+
+    Returns
+    -------
+    number : int
+        The first numeric part of the string converted to an integer.
+        If the string does not start with a number, 0 is returned.
+
+    Examples
+    --------
+    >>> from MDAnalysis.lib.util import atoi
+    >>> atoi('34f4')
+    34
+    >>> atoi('foo')
+    0
+ 
+
+    .. versionadded:: 2.8.0
+    """
+    try:
+        return int(''.join(itertools.takewhile(str.isdigit, s.strip())))
+    except ValueError:
+        return 0
+
+
+def is_installed(modulename: str):
+    """Checks if module is installed
+
+    Parameters
+    ----------
+    modulename : str
+        name of the module to be tested
+        
+     
+    .. versionadded:: 2.8.0
+    """
+    return importlib.util.find_spec(modulename) is not None      

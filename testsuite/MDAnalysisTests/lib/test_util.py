@@ -29,6 +29,7 @@ import textwrap
 from unittest.mock import Mock, patch
 import sys
 import copy
+import shutil
 
 import numpy as np
 from numpy.testing import (assert_equal, assert_almost_equal,
@@ -2222,3 +2223,20 @@ class TestStoreInitArguments:
 
         store2 = store.copy()
         assert store2.__dict__ == store.__dict__
+
+
+@pytest.mark.xfail(os.name == 'nt',
+                   reason="util.which does not get right binary on Windows")
+def test_which():
+    wmsg = "This method is deprecated"
+
+    with pytest.warns(DeprecationWarning, match=wmsg):
+        assert util.which('python') == shutil.which('python')
+
+
+@pytest.mark.parametrize(
+    "modulename,is_installed",
+    [("math", True), ("sys", True), ("some_weird_module_name", False)],
+)
+def test_is_installed(modulename, is_installed):
+    assert util.is_installed(modulename) == is_installed

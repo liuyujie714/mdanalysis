@@ -3,6 +3,12 @@ on:
   schedule:
     # 3 am Tuesdays and Fridays
     - cron: "0 3 * * 2,5"
+  workflow_dispatch:
+  # Uncomment when you need to test on a PR
+  # pull_request:
+  #  branches:
+  #    - develop
+
 
 concurrency:
   # Probably overly cautious group naming.
@@ -20,56 +26,65 @@ env:
   MPLBACKEND: agg
 
 jobs:
+  # a pip only, minimal deps install w/ scipy & numpy nightly upstream wheels
   numpy_and_scipy_dev:
     if: "github.repository == 'MDAnalysis/mdanalysis'"
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_os
       uses: ./.github/actions/setup-os
       with:
         os-type: "ubuntu"
 
-    - name: setup_micromamba
-      uses: mamba-org/setup-micromamba@v1
+    - uses: actions/setup-python@v5
       with:
-        environment-name: mda
-        create-args: >-
-          python=3.11
-          pip
-        # using jaime's shim to avoid pulling down the cudatoolkit
-        condarc: |
-          channels:
-            - jaimergp/label/unsupported-cudatoolkit-shim
-            - conda-forge
-            - bioconda
+        python-version: ${{ matrix.python-version }}
 
-    - name: install_deps
-      uses: ./.github/actions/setup-deps
-      with:
-        micromamba: true
-        full-deps: true
-
-      # overwrite installs by picking up nightly wheels
+    # minimally install nightly wheels & core deps
     - name: nightly_wheels
       run: |
-        pip install --pre -U -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple scipy numpy networkx matplotlib pandas
+        # Nightlies: add in networkx and matplotlib because we can
+        python -m pip install --pre -U --extra-index https://pypi.anaconda.org/scientific-python-nightly-wheels/simple \
+            scipy           \
+            numpy           \
+            networkx        \
+            matplotlib      \
+        # Base deps
+        python -m pip install        \
+            "cython>=0.28"           \
+            packaging                \
+            "setuptools>69.4"        \
+            wheel                    \
+            "griddataformats>=0.4.0" \
+            "mmtf-python>=1.0"      \
+            "joblib>=0.12"           \
+            "tqdm>=4.43.0"           \
+            threadpoolctl            \
+            fasteners                \
+            mda-xdrlib               \
+            pytest                   \
+            pytest-xdist             \
+            pytest-timeout
+        # deps that depend on MDA
+        python -m pip install --no-deps \
+            waterdynamics   \
+            pathsimanalysis \
+            mdahole2
 
-    - name: list_deps
-      run: |
-        micromamba list
-        pip list
+    - name: pre_install_list_deps
+      run: python -m pip list
 
-      # Intentionally going with setup.py builds so we can build with latest
     - name: build_srcs
-      uses: ./.github/actions/build-src
-      with:
-        build-tests: true
-        build-docs: false
-        isolation: false
+      run: |
+        python -m pip install --no-build-isolation -v -e ./package
+        python -m pip install --no-build-isolation -v -e ./testsuite
+
+    - name: post_install_list_deps
+      run: python -m pip list
 
     - name: run_tests
       run: |
@@ -83,7 +98,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_os
       uses: ./.github/actions/setup-os
@@ -119,7 +134,7 @@ jobs:
       with:
         build-tests: true
         build-docs: false
-        isolation: false
+        isolation: true
 
     - name: run_tests
       run: |
@@ -133,10 +148,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-11]
+        os: [ubuntu-20.04, macos-12]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_os
       uses: ./.github/actions/setup-os
@@ -148,7 +163,7 @@ jobs:
       with:
         environment-name: mda
         create-args: >-
-          python=3.9
+          python=3.10
           pip
         condarc: |
           channels:
@@ -167,7 +182,7 @@ jobs:
       with:
         build-tests: true
         build-docs: false
-        isolation: false
+        isolation: true
 
     - name: run_tests
       run: |
@@ -182,16 +197,16 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: ["3.10", "3.11"]
+          python-version: ["3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_os
       uses: ./.github/actions/setup-os
       with:
         os-type: "ubuntu"
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -207,6 +222,9 @@ jobs:
       run: |
         pip install pytest-xdist pytest-timeout
 
+    - name: check env
+      run: pip list
+
     - name: run_tests
       run: |
         pytest --timeout=200 -n auto testsuite/MDAnalysisTests --disable-pytest-warnings --durations=50
@@ -220,10 +238,17 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          os: [ubuntu-latest, macos-latest]
-          python-version: ["3.9", "3.10", "3.11"]
+          # Stick to macos-13 because some of our
+          # optional depss don't support arm64 (i.e. macos-14)
+          os: [ubuntu-latest, macos-13]
+          python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: setup_os
+      uses: ./.github/actions/setup-os
+      with:
+        os-type: ${{ matrix.os }}
 
     - name: setup_micromamba
       uses: mamba-org/setup-micromamba@v1
@@ -239,16 +264,15 @@ jobs:
             - conda-forge
             - bioconda
 
+    - name: install_mdanalysis
+      run: |
+          micromamba install mdanalysis mdanalysistests
+
     - name: install_deps
       uses: ./.github/actions/setup-deps
       with:
         micromamba: true
         full-deps: true
-        gsd: "gsd<3.0"
-
-    - name: install_mdanalysis
-      run: |
-          micromamba install mdanalysis mdanalysistests
 
     - name: run_tests
       run: |
@@ -262,17 +286,35 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          os: [ubuntu-latest, macos-latest, windows-latest]
-          python-version: ["3.9", "3.10", "3.11"]
+          os: [ubuntu-latest, macos-latest, macos-14, windows-latest]
+          python-version: ["3.9", "3.10", "3.11", "3.12"]
+          wheels: ['true', 'false']
+          exclude:
+          - os: "macos-14"
+            python-version: "3.9"
     steps:
-    - uses: actions/setup-python@v4
+      # Checkout to have access to local actions (i.e. setup-os)
+    - uses: actions/checkout@v4
+
+      # We need this here in order to make sure we assign the correct compiler (i.e. clang for macos)
+    - name: setup_os
+      uses: ./.github/actions/setup-os
+      with:
+        os-type: ${{ matrix.os }}
+
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: install_mdanalysis
       shell: bash
       run: |
-          pip install mdanalysis mdanalysistests pytest-xdist pytest-timeout "gsd<3.0"
+          # If wheels is False we build directly from source so we use the --no-binary flag
+          # to avoid pulling down wheels for MDAnalysis (which are already precompiled)
+          if [ "${{ matrix.wheels }}" == "false" ]; then
+            INSTALL_FLAGS="-vvv --no-binary"
+          fi
+          pip install ${INSTALL_FLAGS} mdanalysis mdanalysistests pytest-xdist pytest-timeout
 
     - name: run_tests
       shell: bash

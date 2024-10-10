@@ -17,8 +17,6 @@ inputs:
     description: 'use micromamba instead of conda'
     default: false
   # conda-installed min dependencies
-  biopython:
-    default: 'biopython>=1.80'
   codecov:
     default: 'codecov'
   cython:
@@ -33,10 +31,10 @@ inputs:
     default: 'hypothesis'
   matplotlib:
     default: 'matplotlib-base'
+  mda_xdrlib:
+    default: 'mda-xdrlib'
   mmtf-python:
     default: 'mmtf-python'
-  networkx:
-    default: 'networkx'
   numpy:
     default: 'numpy'
   packaging:
@@ -52,10 +50,14 @@ inputs:
   tqdm:
     default: 'tqdm>=4.43.0'
   # conda-installed optional dependencies
+  biopython:
+    default: 'biopython>=1.80'
   chemfiles-python:
     default: 'chemfiles-python>=0.9'
   clustalw:
     default: 'clustalw=2.1'
+  dask:
+    default: 'dask'
   distopia:
     default: 'distopia>=0.2.0'
   h5py:
@@ -66,6 +68,8 @@ inputs:
     default: 'joblib>=0.12'
   netcdf4:
     default: 'netcdf4'
+  networkx:
+    default: 'networkx'
   openmm:
     default: 'openmm'
   pytng:
@@ -104,15 +108,14 @@ runs:
       shell: bash -l {0}
       env:
         CONDA_MIN_DEPS: |
-          ${{ inputs.biopython }}
           ${{ inputs.codecov }}
           ${{ inputs.cython }}
           ${{ inputs.fasteners }}
           ${{ inputs.griddataformats }}
           ${{ inputs.hypothesis }}
           ${{ inputs.matplotlib }}
+          ${{ inputs.mda_xdrlib }}
           ${{ inputs.mmtf-python }}
-          ${{ inputs.networkx }}
           ${{ inputs.numpy }}
           ${{ inputs.packaging }}
           ${{ inputs.pip }}
@@ -121,14 +124,17 @@ runs:
           ${{ inputs.threadpoolctl }}
           ${{ inputs.tqdm }}
         CONDA_OPT_DEPS: |
+          ${{ inputs.biopython }}
           ${{ inputs.chemfiles-python }}
           ${{ inputs.clustalw }}
+          ${{ inputs.dask }}
           ${{ inputs.distopia }}
           ${{ inputs.gsd }}
           ${{ inputs.h5py }}
           ${{ inputs.hole2 }}
           ${{ inputs.joblib }}
           ${{ inputs.netcdf4 }}
+          ${{ inputs.networkx }}
           ${{ inputs.openmm }}
           ${{ inputs.pytng }}
           ${{ inputs.rdkit }}

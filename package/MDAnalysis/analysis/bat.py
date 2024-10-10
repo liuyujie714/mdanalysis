@@ -31,11 +31,11 @@ r"""Bond-Angle-Torsion coordinates analysis --- :mod:`MDAnalysis.analysis.bat`
 
 This module contains classes for interconverting between Cartesian and an
 internal coordinate system, Bond-Angle-Torsion (BAT) coordinates
-:cite:p:`Chang2003`, for a given set of atoms or residues. This coordinate
+:footcite:p:`Chang2003`, for a given set of atoms or residues. This coordinate
 system is designed to be complete, non-redundant, and minimize correlations
 between degrees of freedom. Complete and non-redundant means that for N atoms
 there will be 3N Cartesian coordinates and 3N BAT coordinates. Correlations are
-minimized by using improper torsions, as described in :cite:p:`Hikiri2016`.
+minimized by using improper torsions, as described in :footcite:p:`Hikiri2016`.
 
 More specifically, bond refers to the bond length, or distance between
 a pair of bonded atoms. Angle refers to the bond angle, the angle between
@@ -56,7 +56,7 @@ pointing from the first to second atom. It is described by the polar angle,
 :math:`\phi`, and azimuthal angle, :math:`\theta`. :math:`\omega` is a third angle
 that describes the rotation of the third atom about the axis.
 
-This module was adapted from AlGDock :cite:p:`Minh2020`.
+This module was adapted from AlGDock :footcite:p:`Minh2020`.
 
 
 See Also
@@ -129,7 +129,7 @@ Store data to the disk and load it again::
 
 Analysis classes
 ----------------
- .. autoclass:: BAT
+.. autoclass:: BAT
     :members:
     :inherited-members:
 
@@ -154,13 +154,7 @@ Analysis classes
 References
 ----------
 
-.. bibliography::
-    :filter: False
-    :style: MDA
-
-    Chang2003
-    Hikiri2016
-    Minh2020
+.. footbibliography::
 
 """
 import logging
@@ -170,7 +164,7 @@ import numpy as np
 import copy
 
 import MDAnalysis as mda
-from .base import AnalysisBase
+from .base import AnalysisBase, ResultsGroup
 
 from MDAnalysis.lib.distances import calc_bonds, calc_angles, calc_dihedrals
 from MDAnalysis.lib.mdamath import make_whole
@@ -259,10 +253,28 @@ class BAT(AnalysisBase):
     Bond-Angle-Torsions (BAT) internal coordinates will be computed for
     the group of atoms and all frame in the trajectory belonging to `ag`.
 
+    .. versionchanged:: 2.8.0
+       Enabled **parallel execution** with the ``multiprocessing`` and ``dask`` 
+       backends; use the new method :meth:`get_supported_backends` to see all 
+       supported backends.
+
     """
-    @due.dcite(Doi("10.1002/jcc.26036"),
-               description="Bond-Angle-Torsions Coordinate Transformation",
-               path="MDAnalysis.analysis.bat.BAT")
+    _analysis_algorithm_is_parallelizable = True
+      
+    @classmethod
+    def get_supported_backends(cls):
+        return (
+            "serial",
+            "multiprocessing",
+            "dask",
+        )
+
+    @due.dcite(
+       Doi("10.1002/jcc.26036"),
+       description="Bond-Angle-Torsions Coordinate Transformation",
+       path="MDAnalysis.analysis.bat.BAT",
+    )
+   
     def __init__(self, ag, initial_atom=None, filename=None, **kwargs):
         r"""Parameters
         ----------
@@ -564,3 +576,6 @@ class BAT(AnalysisBase):
     def atoms(self):
         """The atomgroup for which BAT are computed (read-only property)"""
         return self._ag
+
+    def _get_aggregator(self):
+        return ResultsGroup(lookup={'bat': ResultsGroup.ndarray_vstack})

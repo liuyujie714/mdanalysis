@@ -103,16 +103,16 @@ The trajectory is included with the test data files. The data in
    ax.set_xlabel("time (ps)")
    ax.set_ylabel(r"RMSD ($\\AA$)")
    fig.savefig("rmsd_all_CORE_LID_NMP_ref1AKE.pdf")
-   
+
 .. _figure-RMSD:
 
 .. figure:: /images/RSMD_plot.png
       :scale: 50 %
       :alt: RMSD plot
-      
+
       RMSD plot for backbone and CORE, LID, NMP domain of the protein.
 
-      
+
 Functions
 ---------
 
@@ -166,10 +166,10 @@ import numpy as np
 import logging
 import warnings
 
-import MDAnalysis.lib.qcprot as qcp
-from MDAnalysis.analysis.base import AnalysisBase
-from MDAnalysis.exceptions import SelectionError, NoDataError
-from MDAnalysis.lib.util import asiterable, iterable, get_weights
+from ..lib import qcprot as qcp
+from ..analysis.base import AnalysisBase, ResultsGroup
+from ..exceptions import SelectionError
+from ..lib.util import asiterable, iterable, get_weights
 
 
 logger = logging.getLogger('MDAnalysis.analysis.rmsd')
@@ -358,8 +358,17 @@ class RMSD(AnalysisBase):
     .. versionchanged:: 2.0.0
        :attr:`rmsd` results are now stored in a
        :class:`MDAnalysis.analysis.base.Results` instance.
-
+    .. versionchanged:: 2.8.0
+       introduced :meth:`get_supported_backends` allowing for parallel
+       execution on ``multiprocessing`` and ``dask`` backends.
     """
+    _analysis_algorithm_is_parallelizable = True
+
+    @classmethod
+    def get_supported_backends(cls):
+        return ('serial', 'multiprocessing', 'dask',)
+
+
     def __init__(self, atomgroup, reference=None, select='all',
                  groupselections=None, weights=None, weights_groupselections=False,
                  tol_mass=0.1, ref_frame=0, **kwargs):
@@ -418,8 +427,8 @@ class RMSD(AnalysisBase):
 
         weights_groupselections : False or list of {"mass", ``None`` or array_like} (optional)
              1. ``False`` will apply imposed weights to `groupselections` from
-             ``weights`` option if ``weights`` is either ``"mass"`` or ``None``. 
-             Otherwise will assume a list of length equal to length of 
+             ``weights`` option if ``weights`` is either ``"mass"`` or ``None``.
+             Otherwise will assume a list of length equal to length of
              `groupselections` filled with ``None`` values.
 
              2. A list of {"mass", ``None`` or array_like} with the length of `groupselections`
@@ -670,6 +679,9 @@ class RMSD(AnalysisBase):
 
         self._mobile_coordinates64 = self.mobile_atoms.positions.copy().astype(np.float64)
 
+    def _get_aggregator(self):
+        return ResultsGroup(lookup={'rmsd': ResultsGroup.ndarray_vstack})
+
     def _single_frame(self):
         mobile_com = self.mobile_atoms.center(self.weights_select).astype(np.float64)
         self._mobile_coordinates64[:] = self.mobile_atoms.positions
@@ -739,6 +751,11 @@ class RMSF(AnalysisBase):
     in the array :attr:`RMSF.results.rmsf`.
 
     """
+
+    @classmethod
+    def get_supported_backends(cls):
+        return ('serial',)
+
     def __init__(self, atomgroup, **kwargs):
         r"""Parameters
         ----------
@@ -767,7 +784,7 @@ class RMSF(AnalysisBase):
         No mass weighting is performed.
 
         This method implements an algorithm for computing sums of squares while
-        avoiding overflows and underflows :cite:p:`Welford1962`.
+        avoiding overflows and underflows :footcite:p:`Welford1962`.
 
 
         Examples
@@ -844,11 +861,7 @@ class RMSF(AnalysisBase):
 
         References
         ----------
-        .. bibliography::
-            :filter: False
-            :style: MDA
-
-            Welford1962
+        .. footbibliography::
 
 
         .. versionadded:: 0.11.0

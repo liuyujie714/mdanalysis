@@ -26,7 +26,7 @@ TNG trajectory files --- :mod:`MDAnalysis.coordinates.TNG`
 ==========================================================
 
 
-The TNG format :cite:p:`Lundborg2014` is a format used in `GROMACS`_ for
+The TNG format :footcite:p:`Lundborg2014` is a format used in `GROMACS`_ for
 storage of trajectory and topology information. The TNG format allows a wide
 range of compression algorithms and unlike the compressed XTC format can also
 store velocities and forces in addition to positions.
@@ -44,7 +44,7 @@ other arbitrary time dependent data. Additional information can range from
 the virial and pressure components to the molecular topology of the system.
 This is enabled by a block based system in which binary flags indicate the
 presence or absence of various data blocks. The structure of a TNG file is
-provided  in the `TNG specification`_. The TNG paper :cite:p:`Lundborg2014` and
+provided  in the `TNG specification`_. The TNG paper :footcite:p:`Lundborg2014` and
 the `pytng documentation`_ are also good resources. The user is encouraged to
 read the full list of `TNG blocks`_ to understand the full power of the TNG
 format.
@@ -70,11 +70,7 @@ divisible by the shared integrator step of the special blocks.
 References
 ----------
 
-.. bibliography::
-    :filter: False
-    :style: MDA
-
-    Lundborg2014
+.. footbibliography::
 
 
 .. Links
@@ -116,7 +112,7 @@ else:
 class TNGReader(base.ReaderBase):
     r"""Reader for the TNG format
 
-    The TNG format :cite:p:`Lundborg2014` is a format used in `GROMACS`_ for
+    The TNG format :footcite:p:`Lundborg2014` is a format used in `GROMACS`_ for
     storage of trajectory and topology information. This reader is are based on
     the `pytng`_ package for reading TNG files. The reader is directed to the
     `pytng documentation`_ and `TNG specification`_ for further reading.
@@ -503,9 +499,15 @@ class TNGReader(base.ReaderBase):
         self.__dict__ = state
         # reconstruct file iterator
         self._file_iterator = pytng.TNGFileIterator(self.filename, "r")
-        # make sure we re-read the current frame to update C level objects in
-        # the file iterator
-        self._read_frame(self._frame)
+
+        # unlike self._read_frame(self._frame),
+        # the following lines update the state of the C-level file iterator
+        # without updating the ts object.
+        # This is necessary to preserve the modification,
+        # e.g. changing coordinates, in the ts object.
+        # see PR #3722 for more details.
+        step = self._frame_to_step(self._frame)
+        _ = self._file_iterator.read_step(step)
 
     def Writer(self):
         """Writer for TNG files

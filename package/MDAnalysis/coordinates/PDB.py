@@ -149,6 +149,7 @@ import warnings
 import logging
 import collections
 import numpy as np
+import functools
 
 from ..lib import util
 from ..lib.util import store_init_arguments
@@ -170,12 +171,13 @@ class PDBReader(base.ReaderBase):
     The following *PDB records* are parsed (see `PDB coordinate section`_ for
     details):
 
-     - *CRYST1* for unitcell A,B,C, alpha,beta,gamma
-     - *ATOM* or *HETATM* for serial,name,resName,chainID,resSeq,x,y,z,occupancy,tempFactor
-     - *HEADER* (:attr:`header`), *TITLE* (:attr:`title`), *COMPND*
-       (:attr:`compound`), *REMARK* (:attr:`remarks`)
-     - all other lines are ignored
+    - *CRYST1* for unitcell A,B,C, alpha,beta,gamma
+    - *ATOM* or *HETATM* for serial,name,resName,chainID,resSeq,x,y,z,occupancy,tempFactor
+    - *HEADER* (:attr:`header`), *TITLE* (:attr:`title`), *COMPND*
+        (:attr:`compound`), *REMARK* (:attr:`remarks`)
+    - all other lines are ignored
 
+    
     Reads multi-`MODEL`_ PDB files as trajectories.  The `Timestep.data` dictionary
     holds the occupancy and tempfactor (bfactor) values for each atom for a given frame.
     These attributes are commonly appropriated to store other time varying properties
@@ -236,6 +238,7 @@ class PDBReader(base.ReaderBase):
     :class:`PDBWriter`
     :class:`PDBReader`
 
+    
     .. versionchanged:: 0.11.0
        * Frames now 0-based instead of 1-based
        * New :attr:`title` (list with all TITLE lines).
@@ -244,7 +247,7 @@ class PDBReader(base.ReaderBase):
     .. versionchanged:: 0.20.0
        Strip trajectory header of trailing spaces and newlines
     .. versionchanged:: 1.0.0
-       Raise user warning for CRYST1_ record with unitary valuse
+       Raise user warning for CRYST1_ record with unitary values
        (cubic box with sides of 1 Å) and do not set cell dimensions.
     .. versionchanged:: 2.5.0
        Tempfactors (aka bfactors) are now read into the ts.data dictionary each
@@ -1026,6 +1029,7 @@ class PDBWriter(base.WriterBase):
         self._check_pdb_coordinates()
         self._write_timestep(ts, **kwargs)
 
+    @functools.cache
     def _deduce_PDB_atom_name(self, atomname, resname):
         """Deduce how the atom name should be aligned.
 
@@ -1215,7 +1219,7 @@ class PDBWriter(base.WriterBase):
         else:
             atom_ids = np.arange(len(atoms)) + 1
 
-        for i, atom in enumerate(atoms):
+        for i in range(len(atoms)):
             vals = {}
             vals['serial'] = util.ltruncate_int(atom_ids[i], 5)  # check for overflow here?
             vals['name'] = self._deduce_PDB_atom_name(atomnames[i], resnames[i])

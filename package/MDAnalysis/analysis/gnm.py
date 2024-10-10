@@ -34,7 +34,7 @@ Elastic network analysis of MD trajectories --- :mod:`MDAnalysis.analysis.gnm`
 
 
 Analyse a trajectory using elastic network models, following the approach of
-:cite:p:`Hall2007`.
+:footcite:p:`Hall2007`.
 
 An example is provided in the MDAnalysis Cookbook_, listed as GNMExample_.
 
@@ -58,15 +58,11 @@ the analysis:
 
 
 The results are found in :attr:`GNMAnalysis.results`, which can be
-used for further processing (see :cite:p:`Hall2007`).
+used for further processing (see :footcite:p:`Hall2007`).
 
 .. rubric:: References
 
-.. bibliography::
-    :filter: False
-    :style: MDA
-
-    Hall2007
+.. footbibliography::
 
 
 Analysis tasks
@@ -96,7 +92,7 @@ import warnings
 
 import numpy as np
 
-from .base import AnalysisBase
+from .base import AnalysisBase, ResultsGroup
 
 
 from MDAnalysis.analysis.base import Results
@@ -249,8 +245,19 @@ class GNMAnalysis(AnalysisBase):
        Use :class:`~MDAnalysis.analysis.AnalysisBase` as parent class and
        store results as attributes ``times``, ``eigenvalues`` and
        ``eigenvectors`` of the ``results`` attribute.
+
+    .. versionchanged:: 2.8.0
+       Enabled **parallel execution** with the ``multiprocessing`` and ``dask`` 
+       backends; use the new method :meth:`get_supported_backends` to see all 
+       supported backends.
     """
 
+    _analysis_algorithm_is_parallelizable = True
+
+    @classmethod
+    def get_supported_backends(cls):
+        return ("serial", "multiprocessing", "dask")
+    
     def __init__(self,
                  universe,
                  select='protein and name CA',
@@ -351,6 +358,15 @@ class GNMAnalysis(AnalysisBase):
         self.results.times = self.times
         self.results.eigenvalues = np.asarray(self.results.eigenvalues)
         self.results.eigenvectors = np.asarray(self.results.eigenvectors)
+
+    def _get_aggregator(self):
+        return ResultsGroup(
+            lookup={
+                "eigenvectors": ResultsGroup.ndarray_hstack,
+                "eigenvalues": ResultsGroup.ndarray_hstack,
+                "times": ResultsGroup.ndarray_hstack,
+            }
+        )
 
 
 class closeContactGNMAnalysis(GNMAnalysis):

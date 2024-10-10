@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - develop
+  workflow_dispatch:
 
 concurrency:
   # Probably overly cautious group naming.
@@ -27,24 +28,29 @@ jobs:
         fail-fast: false
         matrix:
           os: [ubuntu-latest, ]
-          python-version: ["3.9", "3.10", "3.11"]
+          python-version: ["3.10", "3.11", "3.12"]
           full-deps: [true, ]
           codecov: [true, ]
           include:
             - name: macOS_monterey_py311
               os: macOS-12
-              python-version: "3.11"
+              python-version: "3.12"
               full-deps: true
+              codecov: true
+            - name: macOS_14_arm64_py312
+              os: macOS-14
+              python-version: "3.12"
+              full-deps: false
               codecov: true
             - name: numpy_min
               os: ubuntu-latest
-              python-version: 3.9
+              python-version: "3.10"
               full-deps: false
               codecov: true
-              numpy: numpy=1.22.3
+              numpy: numpy=1.23.2
             - name: asv_check
               os: ubuntu-latest
-              python-version: 3.9
+              python-version: "3.10"
               full-deps: true
               codecov: false
               extra-pip-deps: asv
@@ -53,7 +59,7 @@ jobs:
       MPLBACKEND: agg
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_os
       uses: ./.github/actions/setup-os
@@ -79,6 +85,8 @@ jobs:
       with:
         micromamba: true
         full-deps: ${{ matrix.full-deps }}
+        # disable GSD because it occasionally introduce hanging in testing #4209
+        gsd: ''
         # in most cases will just default to empty, i.e. pick up max version from other deps
         numpy: ${{ matrix.numpy }}
         extra-pip-deps: ${{ matrix.extra-pip-deps }}
@@ -88,10 +96,11 @@ jobs:
       with:
         build-tests: true
         build-docs: false
-        # If we specifically define an old NumPy version then we isolate the
-        # the build, i.e. make sure that we build with NumPy 1.25+ but we keep
-        # the old version of NumPy as what we use for runtime testing
-        isolation: ${{ matrix.numpy != '' }}
+        # The standard mdanalysis deployment is to build with the
+        # oldest supported numpy version and then use whatever new
+        # numpy version we want at runtime. To do this we ensure
+        # that we use build isolation
+        isolation: true
 
     - name: check_deps
       run: |
@@ -106,7 +115,7 @@ jobs:
           PYTEST_FLAGS="${PYTEST_FLAGS} --cov-config=.coveragerc --cov=MDAnalysis --cov-report=xml"
         fi
         echo $PYTEST_FLAGS
-        pytest -n auto --timeout=200 testsuite/MDAnalysisTests $PYTEST_FLAGS
+        pytest -n logical --timeout=200 testsuite/MDAnalysisTests $PYTEST_FLAGS
 
     - name: run_asv
       if: contains(matrix.name, 'asv_check')
@@ -116,11 +125,11 @@ jobs:
 
     - name: codecov
       if: matrix.codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: coverage.xml
-        fail_ci_if_error: True
+        fail_ci_if_error: False
         verbose: True
 
 
@@ -133,14 +142,14 @@ jobs:
       MPLBACKEND: agg
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: setup_micromamba
       uses: mamba-org/setup-micromamba@v1
       with:
         environment-name: mda
         create-args: >-
-          python=3.9
+          python=3.10
           pip
         # using jaime's shim to avoid pulling down the cudatoolkit
         condarc: |
@@ -154,14 +163,16 @@ jobs:
       with:
         micromamba: true
         full-deps: true
-        extra-pip-deps: "docutils<0.18 sphinx<7.0 sphinx-sitemap sphinx_rtd_theme msmb_theme==1.2.0 sphinxcontrib-bibtex pybtex pybtex-docutils"
+        gsd: ''
+        extra-pip-deps: "docutils sphinx-sitemap sphinxcontrib-bibtex pybtex pybtex-docutils"
+        extra-conda-deps: "mdanalysis-sphinx-theme>=1.3.0"
 
     - name: build_srcs
       uses: ./.github/actions/build-src
       with:
         build-tests: true
         build-docs: true
-        isolation: false
+        isolation: true
 
     - name: doctests
       if: github.event_name == 'pull_request'
@@ -191,7 +202,7 @@ jobs:
         # (see https://github.com/travis-ci/travis-ci/issues/4704)
         # commented out as this is not a problem with gh-actions
         # python -c 'import os,sys,fcntl; flags = fcntl.fcntl(sys.stdout, fcntl.F_GETFL); fcntl.fcntl(sys.stdout, fcntl.F_SETFL, flags&~os.O_NONBLOCK);'
-        cd package/doc/html/html
+        cd package/doc/html/
 
         # move docs into version subfolder
         mkdir ../${VERSION} && mv * ../${VERSION} && mv ../${VERSION} $VERSION
@@ -230,9 +241,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: 3.11
 
@@ -251,13 +262,13 @@ jobs:
 
     - name: check_package_build
       run: |
-        DISTRIBUTION=$(ls -t1 dist/MDAnalysis-*.tar.gz | head -n1)
+        DISTRIBUTION=$(ls -t1 dist/mdanalysis-*.tar.gz | head -n1)
         test -n "${DISTRIBUTION}" || { echo "no distribution dist/MDAnalysis-*.tar.gz found"; exit 1; }
         twine check $DISTRIBUTION
 
     - name: check_testsuite_build
       run: |
-        DISTRIBUTION=$(ls -t1 dist/MDAnalysisTests-*.tar.gz | head -n1)
+        DISTRIBUTION=$(ls -t1 dist/mdanalysistests-*.tar.gz | head -n1)
         test -n "${DISTRIBUTION}" || { echo "no distribution dist/MDAnalysisTests-*.tar.gz found"; exit 1; }
         twine check $DISTRIBUTION
 
@@ -265,9 +276,12 @@ jobs:
       working-directory: ./dist
       run: |
         ls -a .
-        python -m pip install MDAnalysis-*.tar.gz
-        python -m pip install MDAnalysisTests-*.tar.gz
+        python -m pip install mdanalysis-*.tar.gz
+        python -m pip install mdanalysistests-*.tar.gz
+
+    - name: check install
+      run: pip list
 
     - name: run tests
       working-directory: ./dist
-      run: python -m pytest --timeout=200 -n auto --pyargs MDAnalysisTests
+      run: python -m pytest --timeout=200 -n logical --pyargs MDAnalysisTests

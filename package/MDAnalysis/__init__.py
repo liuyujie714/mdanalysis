@@ -36,8 +36,8 @@ CHARMM-style atom selection commands are implemented. Trajectories can
 also be manipulated (for instance, fit to a reference structure) and
 written out. Time-critical code is written in C for speed.
 
-Help is also available through the mailinglist at
-http://groups.google.com/group/mdnalysis-discussion
+Help is also available through GitHub Discussions at
+https://github.com/MDAnalysis/mdanalysis/discussions
 
 Please report bugs and feature requests through the issue tracker at
 https://github.com/MDAnalysis/mdanalysis/issues
@@ -150,7 +150,7 @@ the OPLS/AA force field.
 
 """
 
-__all__ = ['Universe', 'Writer', 'fetch_mmtf',
+__all__ = ['Universe', 'Writer',
            'AtomGroup', 'ResidueGroup', 'SegmentGroup']
 
 import logging
@@ -209,7 +209,6 @@ from .core.groups import AtomGroup, ResidueGroup, SegmentGroup
 from .coordinates.core import writer as Writer
 
 # After Universe import
-from .coordinates.MMTF import fetch_mmtf
 from . import converters
 
 from .due import due, Doi, BibTeX
